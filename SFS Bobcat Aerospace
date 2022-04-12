@@ -1,13 +1,18 @@
+#include <Adafruit_BMP3XX.h>
+#include <bmp3.h>
+#include <bmp3_defs.h>
+
 /*
  * FlightComputerBAT.ino
- * Revision date: 14 Dec 2021
- * Edition: 1.00
- * Written by: Texas State Aerospace Team (BAT)
- * This code is written for the flight computer built and designed by the Avionics Club of the Texas State University
+ * Revision date: 04 Apr 2022
+ * Edition: 1.10
+ * Written by: Texas State Aerospace Team (BAT) -- Christian Perez, Connor Martin
+ * This code is written for the flight computer built and designed by the Avionics team of the Texas State University
  * Aerospace Team. The purpose of this program is to control a flight computer that will sussesfully launch a high 
  * powered rocket 10,000 ft into the air. Once appagee is reached at 10,000 ft, parachutes will be deployed to allow 
  * for a safe landing of the rocket back onto the ground. If any avionics/BAT members make changes to the code, please
- * update the edition and leave a note below explaining changes. 
+ * update the edition and leave a note below explaining changes.
+ * UPDATE GUIDLINES: modify version#.# (1.10  excluding last decimal) for sensor functionality changes. modify version#._# (1.11 for example)
  * 
  * NOTE: 12/14/21- Started beginning stages for the code. As of now, the computer is set up to interface with the BMP388 and MPU-6050 
  *                 on a small easily testible scale. Acceleration values given by the MPU-6050 appear to be inconsistent when MPU is 
@@ -17,8 +22,22 @@
 //The following definitions and inclusions are required for the BMP388 
 #include <Wire.h>
 #include <SPI.h>
-#include <Adafruit_Sensor.h>
+#include "Adafruit_Sensor.h"
 #include <Adafruit_BMP3XX.h>
+#include <bmp3.h>
+#include <bmp3_defs.h> //headers and libraries for BMP388
+
+#include <Adafruit_FlashCache.h>
+#include <Adafruit_FlashTransport.h>
+#include <Adafruit_SPIFlash.h>
+#include <Adafruit_SPIFlashBase.h>
+#include <flash_devices.h> // SPI flash mem libraries
+
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <string.h>
 
 #define BMP_SCK 13
 #define BMP_MISO 12
@@ -37,25 +56,32 @@ Adafruit_BMP3XX bmp;
 
 Adafruit_MPU6050 mpu;
 
-
-
 void setup() 
   {
-  Serial.begin(115200);
-  
-  //The following code attempts to initialize the BMP388
-  if (!bmp.begin_I2C()) {   // hardware I2C mode, can pass in address & alt Wire
+    Serial.begin(115200);
+    while (!Serial);
+    Serial.println("Adafruit BMP388 / BMP390 test");
+
+    if (!bmp.begin_I2C()) // hardware I2C mode, can pass in address & alt Wire
+    {   
+    //if (! bmp.begin_SPI(BMP_CS)) {  // hardware SPI mode  
+    //if (! bmp.begin_SPI(BMP_CS, BMP_SCK, BMP_MISO, BMP_MOSI)) {  // software SPI mode
     Serial.println("Could not find a valid BMP3 sensor, check wiring!");
     while (1);
-  }
-  
-  //The following code attempts to initialize the MPU-6050
-  if (!mpu.begin()) {
-    Serial.println("Failed to find MPU6050 chip");
-    while (1) {
+    {
       delay(10);
     }
+
+    if (!mpu.begin()) 
+    {
+      Serial.println("Failed to find MPU6050 chip");
+      while (1) 
+      {
+      delay(10);
+      }
+    }
   }
+
 
   //The following lines of code are for intialzing the pins on the Teesny 4.0 
   pinMode( 2, OUTPUT); //BUZZER
@@ -140,11 +166,38 @@ void setup()
 
 }
 
-void loop() {
+void loop() 
+{ 
+  setup();
+  // Set up oversampling and filter initialization
+  bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
+  bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
+  bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
+  bmp.setOutputDataRate(BMP3_ODR_50_HZ);
   
-  //Get new sensor events with the readings for BMP388 
+  if (! bmp.performReading()) 
+  {
+    Serial.println("Failed to perform reading :(");
+    return;
+  }
+
   sensors_event_t a, g, temp;
-  mpu.getEvent(&a, &g, &temp);
+  mpu.getEvent(&a, &g, &temp); // new values for sensors
+  
+  Serial.print("Temperature = ");
+  Serial.print(bmp.temperature);
+  Serial.println(" *C");
+
+  Serial.print("Pressure = ");
+  Serial.print(bmp.pressure / 100.0);
+  Serial.println(" hPa");
+
+  Serial.print("Approx. Altitude = ");
+  Serial.print(bmp.readAltitude(SEALEVELPRESSURE_HPA));
+  Serial.println(" m");
+
+  Serial.println();
+  delay(2000);
 
   //Print out the values onto the serial monitor 
   Serial.print("Acceleration X: ");
@@ -184,16 +237,20 @@ void loop() {
   Serial.println();
 
   //Activate HV 1 whem altitude is above 113.5 meters or flight computer is upside down
-  if( bmp.readAltitude(SEALEVELPRESSURE_HPA) > 113.5 ){
+  if( bmp.readAltitude(SEALEVELPRESSURE_HPA) > 113.5 )
+  {
     analogWrite(8, 127);
   }
-  if( a.acceleration.z < -10 ){
+  
+  if( a.acceleration.z < -10 )
+  {
     analogWrite(8, 127);
   }
-  if( a.acceleration.z >= -10 && bmp.readAltitude(SEALEVELPRESSURE_HPA) <= 113.5 ){
+  
+  if( a.acceleration.z >= -10 && bmp.readAltitude(SEALEVELPRESSURE_HPA) <= 113.5 )
+  {
     analogWrite(8, LOW);
   }
   
   delay(200);
-
 }
