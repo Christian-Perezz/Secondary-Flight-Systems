@@ -4,20 +4,21 @@
 
 /*
  * FlightComputerBAT.ino
- * Revision date: 04 Apr 2022
+ * Revision date: 14 Dec 2021
  * Edition: 1.10
- * Written by: Texas State Aerospace Team (BAT) -- Christian Perez, Connor Martin
- * This code is written for the flight computer built and designed by the Avionics team of the Texas State University
+ * Written by: Texas State Aerospace Team (BAT), Christian Perez
+ * This code is written for the flight computer built and designed by the Avionics Club of the Texas State University
  * Aerospace Team. The purpose of this program is to control a flight computer that will sussesfully launch a high 
  * powered rocket 10,000 ft into the air. Once appagee is reached at 10,000 ft, parachutes will be deployed to allow 
  * for a safe landing of the rocket back onto the ground. If any avionics/BAT members make changes to the code, please
- * update the edition and leave a note below explaining changes.
- * UPDATE GUIDLINES: modify version#.# (1.10  excluding last decimal) for sensor functionality changes. modify version#._# (1.11 for example)
+ * update the edition and leave a note below explaining changes. 
  * 
  * NOTE: 12/14/21- Started beginning stages for the code. As of now, the computer is set up to interface with the BMP388 and MPU-6050 
  *                 on a small easily testible scale. Acceleration values given by the MPU-6050 appear to be inconsistent when MPU is 
  *                 stationary. Only HV 1 is set up currently for ease of breadboard use. - Connor Martin [1.00] 
  */
+
+/*******************DEFINITION, HANDLERS AND LIBRARIES BELOW*********************/
 
 //The following definitions and inclusions are required for the BMP388 
 #include <Wire.h>
@@ -26,25 +27,32 @@
 #include <Adafruit_BMP3XX.h>
 #include <bmp3.h>
 #include <bmp3_defs.h> //headers and libraries for BMP388
+// end of BMP include 
 
+//SPI dependencies
 #include <Adafruit_FlashCache.h>
 #include <Adafruit_FlashTransport.h>
 #include <Adafruit_SPIFlash.h>
 #include <Adafruit_SPIFlashBase.h>
 #include <flash_devices.h> // SPI flash mem libraries
+//end
 
+//libraries
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+//end
 
+//Pin definitions for teensy
 #define BMP_SCK 13
 #define BMP_MISO 12
 #define BMP_MOSI 11
 #define BMP_CS 10
 #define SEALEVELPRESSURE_HPA (1013.25)
 
+//handler for bmp
 Adafruit_BMP3XX bmp;
 
 
@@ -54,161 +62,203 @@ Adafruit_BMP3XX bmp;
 //#include <Adafruit_Sensor.h>   ////////////// No need to define these twice, but nice to ////////////////
 //#include <Wire.h>              ////////////// know these are required for the MPU-6050.  ////////////////
 
+//handler for mpu
 Adafruit_MPU6050 mpu;
 
-void setup() 
+// ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//****************************SETUP FUNCTION FOR SENSORS****************************
+void setup() // referenced in main loop down below
   {
-    Serial.begin(115200);
-    while (!Serial);
-    Serial.println("Adafruit BMP388 / BMP390 test");
+    Serial.begin(115200); //BAUD rate commincuation speed to teensy
+    while (!Serial); //while serial comminucations is intialized
+    Serial.println("Adafruit BMP388 / BMP390 test"); // print to console 
 
     if (!bmp.begin_I2C()) // hardware I2C mode, can pass in address & alt Wire
     {   
     //if (! bmp.begin_SPI(BMP_CS)) {  // hardware SPI mode  
     //if (! bmp.begin_SPI(BMP_CS, BMP_SCK, BMP_MISO, BMP_MOSI)) {  // software SPI mode
     Serial.println("Could not find a valid BMP3 sensor, check wiring!");
-    while (1);
+    
+    while (1); //delay 
     {
-      delay(10);
+      delay(10); //delay if unsuccessful initialization
     }
 
-    if (!mpu.begin()) 
+    if (!mpu.begin()) //when mpu did not auto initialize
     {
-      Serial.println("Failed to find MPU6050 chip");
+      Serial.println("Failed to find MPU6050 chip"); //print failure
       while (1) 
       {
-      delay(10);
+      delay(10); //delay if unsuccessful initialization
       }
     }
   }
 
+//****************************END OF SENSOR INITIALIZERS****************************
 
-  //The following lines of code are for intialzing the pins on the Teesny 4.0 
-  pinMode( 2, OUTPUT); //BUZZER
-  pinMode( 3, OUTPUT); //REDLED
-  pinMode( 4, OUTPUT); //BLUELED    ////////////// IMPORTANT NOTE: No need to define pins used  ////////////////
-  pinMode( 7, OUTPUT); //CS 1       ////////////// for SPI or i2C (Exception: CS needs defining) ////////////////
-  pinMode( 8, OUTPUT); //HV 1
-  pinMode( 9, OUTPUT); //HV 2
-  pinMode(10, OUTPUT); //HV 3
-  pinMode(11, OUTPUT); //HV 4
-  pinMode(12, OUTPUT); //CS 0
+
+//****************************START OF PIN DELCARATIONS****************************
+  //The following lines of code are for intialzing the output pins on the Teesny 4.0 
+  
+  pinMode( 2, OUTPUT); //BUZZER PIN 2
+  pinMode( 3, OUTPUT); //REDLED PIN 3
+  pinMode( 4, OUTPUT); //BLUELED PIN 4   ////////////// IMPORTANT NOTE: No need to define pins used  ////////////////
+  pinMode( 7, OUTPUT); //CS 1 PIN 7      ////////////// for SPI or i2C (Exception: CS needs defining) ////////////////
+  pinMode( 8, OUTPUT); //HV 1 PIN 8
+  pinMode( 9, OUTPUT); //HV 2 PIN 9
+  pinMode(10, OUTPUT); //HV 3 PIN 10
+  pinMode(11, OUTPUT); //HV 4 PIN 11
+  pinMode(12, OUTPUT); //CS 0 PIN 12
+
+  // CS means chip select. HV mean high voltage. 
+
+
+//END DECLARATIONS
+
+//****************************BMP SENSOR CONFIG****************************
 
   //Set up oversampling and filter initialization for the BMP [ Data Acquisition ]
   bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
   bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
   bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
   bmp.setOutputDataRate(BMP3_ODR_50_HZ);
+  //refer to adafruit documentation
 
+//END OF BMP CONIFG
 
-  //The rest of this code is data acquisition for the MPU-6050
-  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+//****************************MPU SENSOR CONFIG****************************
+
+  //8-G mode definitions 
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G); //set G-forcve range to 8
+
+  // MPU G-force detection cases. Here data from the MPU is revieced and a G-force range is determined
   Serial.print("Accelerometer range set to: ");
-  switch (mpu.getAccelerometerRange()) {
-  case MPU6050_RANGE_2_G:
-    Serial.println("+-2G");
-    break;
-  case MPU6050_RANGE_4_G:
-    Serial.println("+-4G");
-    break;
-  case MPU6050_RANGE_8_G:
-    Serial.println("+-8G");
-    break;
-  case MPU6050_RANGE_16_G:
-    Serial.println("+-16G");
-    break;
+
+  //case statement for all possible gyro ranges  
+  switch (mpu.getAccelerometerRange()) 
+  {
+    case MPU6050_RANGE_2_G: //detected 2Gs
+        Serial.println("+-2G");
+        break;
+    case MPU6050_RANGE_4_G: //detected 4Gs
+        Serial.println("+-4G");
+        break;
+    case MPU6050_RANGE_8_G: //detected 8Gs
+        Serial.println("+-8G");
+        break;
+    case MPU6050_RANGE_16_G: //deteced 16Gs
+        Serial.println("+-16G");
+        break;
   }
-  mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+
+  //degree range set for MPU 
+  
+  mpu.setGyroRange(MPU6050_RANGE_500_DEG); //set degree range to 500
+
+  //case statement for all possible gyro ranges
   Serial.print("Gyro range set to: ");
-  switch (mpu.getGyroRange()) {
-  case MPU6050_RANGE_250_DEG:
-    Serial.println("+- 250 deg/s");
-    break;
-  case MPU6050_RANGE_500_DEG:
-    Serial.println("+- 500 deg/s");
-    break;
-  case MPU6050_RANGE_1000_DEG:
-    Serial.println("+- 1000 deg/s");
-    break;
-  case MPU6050_RANGE_2000_DEG:
-    Serial.println("+- 2000 deg/s");
-    break;
+  switch (mpu.getGyroRange()) 
+  {
+    case MPU6050_RANGE_250_DEG:
+      Serial.println("+- 250 deg/s");
+      break;
+    case MPU6050_RANGE_500_DEG:
+      Serial.println("+- 500 deg/s");
+      break;
+    case MPU6050_RANGE_1000_DEG:
+      Serial.println("+- 1000 deg/s");
+      break;
+    case MPU6050_RANGE_2000_DEG:
+      Serial.println("+- 2000 deg/s");
+      break;
   }
 
-  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+  //communication frequency noise filter for I2C
+  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ); //set frequency range to 21hz
+  
   Serial.print("Filter bandwidth set to: ");
-  switch (mpu.getFilterBandwidth()) {
-  case MPU6050_BAND_260_HZ:
-    Serial.println("260 Hz");
-    break;
-  case MPU6050_BAND_184_HZ:
-    Serial.println("184 Hz");
-    break;
-  case MPU6050_BAND_94_HZ:
-    Serial.println("94 Hz");
-    break;
-  case MPU6050_BAND_44_HZ:
-    Serial.println("44 Hz");
-    break;
-  case MPU6050_BAND_21_HZ:
-    Serial.println("21 Hz");
-    break;
-  case MPU6050_BAND_10_HZ:
-    Serial.println("10 Hz");
-    break;
-  case MPU6050_BAND_5_HZ:
-    Serial.println("5 Hz");
-    break;
+  switch (mpu.getFilterBandwidth()) 
+  {
+    case MPU6050_BAND_260_HZ:
+      Serial.println("260 Hz");
+      break;
+    case MPU6050_BAND_184_HZ:
+      Serial.println("184 Hz");
+      break;
+    case MPU6050_BAND_94_HZ:
+      Serial.println("94 Hz");
+      break;
+    case MPU6050_BAND_44_HZ:
+      Serial.println("44 Hz");
+      break;
+    case MPU6050_BAND_21_HZ:
+      Serial.println("21 Hz");
+      break;
+    case MPU6050_BAND_10_HZ:
+      Serial.println("10 Hz");
+      break;
+    case MPU6050_BAND_5_HZ:
+      Serial.println("5 Hz");
+      break;
   }
 
-  Serial.println("");
-  delay(100);
+  Serial.println(""); //idk tbh
+  delay(100); //seconds
 
 }
+//END OF MPU CONFIG
 
+//****************************END OF SENSOR CONFIGURATIONS****************************
+
+//****************************BEGIN MAIN PROGRAM LOOP****************************
 void loop() 
 { 
-  setup();
-  // Set up oversampling and filter initialization
-  bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
-  bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
-  bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
-  bmp.setOutputDataRate(BMP3_ODR_50_HZ);
-  
-  if (! bmp.performReading()) 
+  setup(); //run setup function 
+
+  //error checking for BMP startup
+  if (! bmp.performReading()) //if unsuccesful initialization 
   {
     Serial.println("Failed to perform reading :(");
     return;
   }
 
+  /*varaible declarations for MPU data
+    a = acceleration
+    g= g-force
+    temp = temperature
+  */
   sensors_event_t a, g, temp;
-  mpu.getEvent(&a, &g, &temp); // new values for sensors
+  mpu.getEvent(&a, &g, &temp); // new values for sensors -- variable references memory location not variable name
+
+//****************************MPU AND BMP DATA DISPLAY****************************
   
   Serial.print("Temperature = ");
-  Serial.print(bmp.temperature);
-  Serial.println(" *C");
+  Serial.print(bmp.temperature); //print BMP temperature read
+  Serial.println(" *C"); //in celcius
 
   Serial.print("Pressure = ");
-  Serial.print(bmp.pressure / 100.0);
+  Serial.print(bmp.pressure / 100.0); //raw pressure value divided 100 for readability
   Serial.println(" hPa");
 
   Serial.print("Approx. Altitude = ");
-  Serial.print(bmp.readAltitude(SEALEVELPRESSURE_HPA));
-  Serial.println(" m");
+  Serial.print(bmp.readAltitude(SEALEVELPRESSURE_HPA)); //print BMP current altitude
+  Serial.println(" m"); // in meters
 
   Serial.println();
-  delay(2000);
+  delay(2000); //seconds
 
   //Print out the values onto the serial monitor 
-  Serial.print("Acceleration X: ");
-  Serial.print(a.acceleration.x);
+  Serial.print("Acceleration: ");
+  Serial.print(a.acceleration.x); //x postions
   Serial.print(", Y: ");
-  Serial.print(a.acceleration.y);
+  Serial.print(a.acceleration.y); //y position
   Serial.print(", Z: ");
-  Serial.print(a.acceleration.z);
+  Serial.print(a.acceleration.z); //z position
   Serial.println(" m/s^2");
 
-  Serial.print("Rotation X: ");
+  //current gyro position
+  Serial.print("Rotation: ");
   Serial.print(g.gyro.x);
   Serial.print(", Y: ");
   Serial.print(g.gyro.y);
@@ -216,41 +266,72 @@ void loop()
   Serial.print(g.gyro.z);
   Serial.println(" rad/s");
 
+  //current MPU temperature
   Serial.print("Temperature: ");
-  Serial.print(temp.temperature);
+  Serial.print(temp.temperature); //mpu print temperature 
   Serial.println(" deg C");
 
-  Serial.println("");
+  Serial.println(""); //character space
 
+  //current BMP temperature
   Serial.print("Temperature = ");
-  Serial.print(bmp.temperature);
+  Serial.print(bmp.temperature);// bmp print temperature
   Serial.println(" *C");
 
+  //curent BMP presure
   Serial.print("Pressure = ");
-  Serial.print(bmp.pressure / 100.0);
+  Serial.print(bmp.pressure / 100.0); //bmp pressure 
   Serial.println(" hPa");
 
+  //current BMP altitude
   Serial.print("Approx. Altitude = ");
-  Serial.print(bmp.readAltitude(SEALEVELPRESSURE_HPA));
+  Serial.print(bmp.readAltitude(SEALEVELPRESSURE_HPA)); // atilitude at sea level reference
   Serial.println(" m");
 
   Serial.println();
 
+//END DATA DISPLAY
+
+//****************************HV line actuation****************************
+
   //Activate HV 1 whem altitude is above 113.5 meters or flight computer is upside down
-  if( bmp.readAltitude(SEALEVELPRESSURE_HPA) > 113.5 )
+  if( bmp.readAltitude(SEALEVELPRESSURE_HPA) > 113.5 ) //when pressure is higher than 113.5 (ground level)
+  {
+    analogWrite(8, 127); // 50% duty cycle -- half power
+  }
+  
+  if( a.acceleration.z < -10 ) //when stationary and or accel is less than 10
   {
     analogWrite(8, 127);
   }
   
-  if( a.acceleration.z < -10 )
+  if( a.acceleration.z >= -10 && bmp.readAltitude(SEALEVELPRESSURE_HPA) <= 113.5 ) //when accel is above - 10 and presure is below 113.5
   {
-    analogWrite(8, 127);
+    analogWrite(8, LOW); //turn off pin 8
   }
   
-  if( a.acceleration.z >= -10 && bmp.readAltitude(SEALEVELPRESSURE_HPA) <= 113.5 )
-  {
-    analogWrite(8, LOW);
-  }
-  
-  delay(200);
+  delay(200); // delay -- non essential. makes a gap between actuation of pin 8
 }
+
+//ADD COOL STUFF HERE
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//END ADD COOL STUFF
+
+//END PROGRAM!
