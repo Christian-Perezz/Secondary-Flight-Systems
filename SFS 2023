@@ -1,5 +1,4 @@
-/*
- * FlightComputerBAT.ino
+/* FlightComputerBAT.ino
  * Revision date: 14 Dec 2021
  * Edition: 1.2
  * Written by: Texas State Aerospace Team (BAT), Christian Perez
@@ -17,7 +16,6 @@
  *
  *
  */
-
 /*******************DEFINITION, HANDLERS AND LIBRARIES BELOW*********************/
 
 //Communication protocols
@@ -32,7 +30,7 @@
 // end of BMP include 
 
 //SPI dependencies
-#include <Adafruit_FlashCache.h>
+//#include <Adafruit_FlashCache.h>
 #include <Adafruit_FlashTransport.h>
 #include <Adafruit_SPIFlash.h>
 #include <Adafruit_SPIFlashBase.h>
@@ -108,7 +106,7 @@ void setup() // initial setup -- referenced in main loop down below
     //initalizing data file
     Serial.println("Inilitizing data file...");
     
-    fopen("dump.txt", "w"); //clears file
+//    fopen("dump.txt", "w"); //clears file
     data = SD.open("dump.txt"); //handle for file
     
     if(data) //if file opens successfuly
@@ -138,20 +136,19 @@ void setup() // initial setup -- referenced in main loop down below
 
      // HV - High Voltage. 
 //END PIN DECLARATIONS
-
   
 //****************************END OF SENSOR INITIALIZERS****************************
 
 //****************************BMP SENSOR CONFIG****************************
 
-  //Set up oversampling and filter initialization for the BMP [ Data Acquisition ]
-  bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
-  bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
-  bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
-  bmp.setOutputDataRate(BMP3_ODR_50_HZ);
-  //refer to adafruit documentation
+//Set up oversampling and filter initialization for the BMP [ Data Acquisition ]
+bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
+bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
+bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
+bmp.setOutputDataRate(BMP3_ODR_50_HZ);
+//refer to adafruit documentation
 
-  //END OF BMP CONIFG
+//END OF BMP CONIFG
 
 //****************************MPU SENSOR CONFIG****************************
 
@@ -231,11 +228,11 @@ void setup() // initial setup -- referenced in main loop down below
 
   Serial.println(""); //idk tbh
   delay(100); //miliseconds
-
 }
+
 //END OF MPU CONFIG
 
-//****************************END OF SENSOR CONFIGURATIONS****************************
+//****************************END OF SENSOR AND SYSTEM CONFIGURATIONS****************************
 
 //****************************BEGIN MAIN PROGRAM LOOP****************************
 
