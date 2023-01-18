@@ -106,7 +106,7 @@ void setup() // initial setup -- referenced in main loop down below
     //initalizing data file
     Serial.println("Inilitizing data file...");
     
-//    fopen("dump.txt", "w"); //clears file
+//    fopen("dump.txt", "w+"); //clears file
     data = SD.open("dump.txt"); //handle for file
     
     if(data) //if file opens successfuly
@@ -257,63 +257,59 @@ void loop()
 
 //****************************MPU AND BMP DATA DISPLAY****************************
   
+  data.println("BMP TEMP READOUTS");
   Serial.print("Temperature = ");
   Serial.print(bmp.temperature); //print BMP temperature read
+  data.println(bmp.temperature);
   Serial.println(" *C"); //in celcius
 
   Serial.print("Pressure = ");
   Serial.print(bmp.pressure / 100.0); //raw pressure value divided 100 for readability
+  data.println(bmp.pressure);
   Serial.println(" hPa");
 
   Serial.print("Approx. Altitude = ");
   Serial.print(bmp.readAltitude(SEALEVELPRESSURE_HPA)); //print BMP current altitude
+  data.println(bmp.readAltitude(SEALEVELPRESSURE_HPA));
   Serial.println(" m"); // in meters
 
   Serial.println();
   delay(20); //miliseconds
 
+  data.println("ACCELERATION READOUT");
   //Print out the values onto the serial monitor 
   Serial.print("Acceleration: ");
   Serial.print(a.acceleration.x); //x postions
+  data.println(a.acceleration.x);
   Serial.print(", Y: ");
   Serial.print(a.acceleration.y); //y position
+  data.println(a.acceleration.y);
   Serial.print(", Z: ");
   Serial.print(a.acceleration.z); //z position
+  data.println(a.acceleration.z);
   Serial.println(" m/s^2");
 
+  data.println("GYRO READOUT");
   //current gyro position
   Serial.print("Rotation: ");
   Serial.print(g.gyro.x);
+  data.println(g.gyro.x);
   Serial.print(", Y: ");
   Serial.print(g.gyro.y);
+  data.println(g.gyro.y);
   Serial.print(", Z: ");
   Serial.print(g.gyro.z);
+  data.println(g.gyro.z);
   Serial.println(" rad/s");
-
+  
+  data.println("MPU TEMP READOUTS");
   //current MPU temperature
   Serial.print("Temperature: ");
   Serial.print(temp.temperature); //mpu print temperature 
+  data.println(temp.temperature);
   Serial.println(" deg C");
 
   Serial.println(""); //character space
-
-  //current BMP temperature
-  Serial.print("Temperature = ");
-  Serial.print(bmp.temperature);// bmp print temperature
-  Serial.println(" *C");
-
-  //curent BMP presure
-  Serial.print("Pressure = ");
-  Serial.print(bmp.pressure / 100.0); //bmp pressure 
-  Serial.println(" hPa");
-
-  //current BMP altitude
-  Serial.print("Approx. Altitude = ");
-  Serial.print(bmp.readAltitude(SEALEVELPRESSURE_HPA)); // atilitude at sea level reference
-  Serial.println(" m");
-
-  Serial.println();
-
 //END DATA DISPLAY
 
 //****************************HV3 line actuation****************************
@@ -341,9 +337,6 @@ void loop()
   
 //ADD COOL STUFF HERE
 
-  
+//END ADD COOL STUFF  
 }
-
-//END ADD COOL STUFF
-
 //END PROGRAM!
