@@ -70,14 +70,17 @@ Adafruit_MPU6050 mpu;
 
 //Global variables
 File data;
+Sd2Card card;
+SdVolume volume;
+SdFile root;
+
+const int cs = 12; //chip select
   
 //****************************SETUP FUNCTION FOR SENSORS****************************
 void setup() // initial setup -- referenced in main loop down below
 {
     Serial.begin(115200);
-
     Serial.print("Initilizing setup...");
-    
     while(!Serial); //while serial comminucations is intializing
     Serial.println("BAT Aerospace flight systems initilizing...");
 
@@ -95,18 +98,84 @@ void setup() // initial setup -- referenced in main loop down below
       while(1);
     }
     
-    if(!SD.begin(4))
+    if(!SD.begin(cs)) //12 is chip select pin for SD card
     {
-      Serial.print("SD card failed to initilize");
+      Serial.print("SD card failed to initilize... check power or connections");
       while(1);
     }
 
     Serial.println("...Success!");
+
+//****************************GET SD CARD INFO****************************
     
+    if (!card.init(SPI_HALF_SPEED, 12)) 
+    {
+      Serial.println("initialization failed... Is the card inserted properly");
+      return;
+    } 
+    
+    else 
+    {
+      Serial.println("Wiring is correct and a card is present.");
+    }
+
+    // print the type of card
+    Serial.print("\nCard type: ");
+    switch(card.type()) 
+    {
+      case SD_CARD_TYPE_SD1:
+        Serial.println("SD1");
+        break;
+      case SD_CARD_TYPE_SD2:
+        Serial.println("SD2");
+        break;
+      case SD_CARD_TYPE_SDHC:
+        Serial.println("SDHC");
+        break;
+      default:
+        Serial.println("Unknown");
+    }
+
+    //volume of card and partion check (FAT32 or FAT16)
+    if (!volume.init(card)) 
+    {
+      Serial.println("Could not find FAT16/FAT32 partition.\nMake sure you've formatted the card");
+      return;
+    }
+
+
+    //displays the type and size of the first FAT-type volume
+    uint32_t volumesize;
+    Serial.print("\nVolume type is FAT");
+    Serial.println(volume.fatType(), DEC); //print in decimal form
+    Serial.println();
+  
+    volumesize = volume.blocksPerCluster();    // clusters are collections of blocks
+    volumesize *= volume.clusterCount();  
+    
+    if (volumesize < 8388608ul) 
+    {
+      Serial.print("Volume size (bytes): ");
+      Serial.println(volumesize * 512);        // SD card blocks are always 512 bytes
+    }
+    Serial.print("Volume size (Kbytes): ");
+    volumesize /= 2;
+    Serial.println(volumesize);
+    Serial.print("Volume size (Mbytes): ");
+    volumesize /= 1024;
+    Serial.println(volumesize);
+    
+//****************************END SD CARD INFO****************************
+       
     //initalizing data file
     Serial.println("Inilitizing data file...");
     
 //    fopen("dump.txt", "w+"); //clears file
+    if(!SD.exists("dump.txt")); //if function returns false
+    {
+      Serial.println("ERRROR - file does not exist or is missing from directory");
+    }
+    
     data = SD.open("dump.txt"); //handle for file
     
     if(data) //if file opens successfuly
@@ -121,9 +190,11 @@ void setup() // initial setup -- referenced in main loop down below
       Serial.println("Error -- file did not open. Check folder contents.");
     }
 
+    data.close();
+
 //****************************START OF PIN DELCARATIONS****************************
 //The following lines of code are for intialzing the output pins on the Teesny 4.0 
-
+// HV - High Voltage. 
     pinMode(0, OUTPUT); //BUZZER PIN 0
     pinMode(1, OUTPUT); //BLUELED PIN 1
     pinMode(2, OUTPUT); //REDLED PIN 2    ////////////// IMPORTANT NOTE: No need to define pins used  ////////////////
@@ -132,9 +203,7 @@ void setup() // initial setup -- referenced in main loop down below
     pinMode(9, OUTPUT); //HV 2 PIN 9
     pinMode(10, OUTPUT); //HV 3 PIN 10
     pinMode(11, OUTPUT); //HV 4 PIN 11
-    pinMode(12, OUTPUT); //CS 0 PIN 12
-
-     // HV - High Voltage. 
+    pinMode(cs, OUTPUT); //CS 0 PIN 12
 //END PIN DECLARATIONS
   
 //****************************END OF SENSOR INITIALIZERS****************************
@@ -234,12 +303,15 @@ bmp.setOutputDataRate(BMP3_ODR_50_HZ);
 
 //****************************END OF SENSOR AND SYSTEM CONFIGURATIONS****************************
 
+//-------------------------------------------------------------------------------------------------
+
 //****************************BEGIN MAIN PROGRAM LOOP****************************
 
 void loop() 
 { 
   setup(); //run setup function 
-
+  SD.open("dump.txt"); //open text file.
+  
   //error checking for BMP startup
   if (! bmp.performReading()) //if unsuccesful initialization 
   {
@@ -252,6 +324,7 @@ void loop()
     g= g-force
     temp = temperature
   */
+  
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp); // new values for sensors -- variable references memory location not variable name
 
@@ -324,7 +397,7 @@ void loop()
   
   if( a.acceleration.z < -10 ) //when stationary and or accel is less than 10
   {
-    analogWrite(8, 127);
+    analogWrite(8, 127); //half duty cycle -- max 255 (0-255)
   }
   
   if( a.acceleration.z >= -10 && bmp.readAltitude(SEALEVELPRESSURE_HPA) <= 113.5 ) //when accel is above - 10 and presure is below 113.5
@@ -338,5 +411,7 @@ void loop()
 //ADD COOL STUFF HERE
 
 //END ADD COOL STUFF  
+
+data.close();
 }
 //END PROGRAM!
