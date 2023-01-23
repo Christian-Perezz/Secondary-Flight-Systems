@@ -74,7 +74,15 @@ Sd2Card card;
 SdVolume volume;
 SdFile root;
 
-const int cs = 12; //chip select
+const int buz = 0,
+          blue = 1,
+          red = 2,
+          cs1 = 7,
+          hv1 = 8,
+          hv2 = 9,
+          hv3 = 10,
+          hv4 = 11,
+          cs0 = 12; //chip select
   
 //****************************SETUP FUNCTION FOR SENSORS****************************
 void setup() // initial setup -- referenced in main loop down below
@@ -84,23 +92,52 @@ void setup() // initial setup -- referenced in main loop down below
     while(!Serial); //while serial comminucations is intializing
     Serial.println("BAT Aerospace flight systems initilizing...");
 
+//****************************PIN DELCARATIONS****************************
+//The following lines of code are for intialzing the output pins on the Teesny 4.0 
+// HV - High Voltage. 
+    pinMode(buz, OUTPUT); //BUZZER PIN 0
+    pinMode(blue, OUTPUT); //BLUELED PIN 1
+    pinMode(red, OUTPUT); //REDLED PIN 2    ////////////// IMPORTANT NOTE: No need to define pins used  ////////////////
+    pinMode(cs1, OUTPUT); //CS 1 PIN 7      ////////////// for SPI or i2C (Exception: CS [Chip Select] needs defining) ////////////////
+    pinMode(hv1, OUTPUT); //HV 1 PIN 8
+    pinMode(hv2, OUTPUT); //HV 2 PIN 9
+    pinMode(hv3, OUTPUT); //HV 3 PIN 10
+    pinMode(hv4, OUTPUT); //HV 4 PIN 11
+    pinMode(cs0, OUTPUT); //CS 0 PIN 12
+//END PIN DECLARATIONS
+
     if (!bmp.begin_I2C()) // hardware I2C mode, can pass in address & alt Wire
     {   
       //if (! bmp.begin_SPI(BMP_CS)) {  // hardware SPI mode  
       //if (! bmp.begin_SPI(BMP_CS, BMP_SCK, BMP_MISO, BMP_MOSI)) {  // software SPI mode
       Serial.println("Could not find a valid BMP3 sensor, check wiring!");
+      digitalWrite(red, 1);
+      digitalWrite(buz, 1);
+      delay(100);
+      digitalWrite(buz,0);
+      digitalWrite(red, 0);
       while (1); //delay 
     }
     
     if (!mpu.begin()) //when mpu did not auto initialize
     {
       Serial.println("Failed to find MPU6050 chip");
+      digitalWrite(red, 1);
+      digitalWrite(buz, 1);
+      delay(100);
+      digitalWrite(buz,0);
+      digitalWrite(red, 0);
       while(1);
     }
     
-    if(!SD.begin(cs)) //12 is chip select pin for SD card
+    if(!SD.begin(cs0)) //12 is chip select pin for SD card
     {
       Serial.print("SD card failed to initilize... check power or connections");
+      digitalWrite(red, 1);
+      digitalWrite(buz, 1);
+      delay(100);
+      digitalWrite(buz,0);
+      digitalWrite(red, 0);
       while(1);
     }
 
@@ -111,12 +148,17 @@ void setup() // initial setup -- referenced in main loop down below
     if (!card.init(SPI_HALF_SPEED, 12)) 
     {
       Serial.println("initialization failed... Is the card inserted properly");
+      digitalWrite(red, 1);
+      digitalWrite(buz, 1);
+      delay(100);
+      digitalWrite(buz,0);
+      digitalWrite(red, 0);
       return;
     } 
     
     else 
     {
-      Serial.println("Wiring is correct and a card is present.");
+      Serial.println("SD card confirmed...");
     }
 
     // print the type of card
@@ -140,6 +182,11 @@ void setup() // initial setup -- referenced in main loop down below
     if (!volume.init(card)) 
     {
       Serial.println("Could not find FAT16/FAT32 partition.\nMake sure you've formatted the card");
+      digitalWrite(red, 1);
+      digitalWrite(buz, 1);
+      delay(100);
+      digitalWrite(buz,0);
+      digitalWrite(red, 0);
       return;
     }
 
@@ -174,6 +221,12 @@ void setup() // initial setup -- referenced in main loop down below
     if(!SD.exists("dump.txt")); //if function returns false
     {
       Serial.println("ERRROR - file does not exist or is missing from directory");
+      digitalWrite(red, 1);
+      digitalWrite(buz, 1);
+      delay(100);
+      digitalWrite(buz,0);
+      digitalWrite(red, 0);
+      return;
     }
     
     data = SD.open("dump.txt"); //handle for file
@@ -188,23 +241,15 @@ void setup() // initial setup -- referenced in main loop down below
     else
     {
       Serial.println("Error -- file did not open. Check folder contents.");
+      digitalWrite(red, 1);
+      digitalWrite(buz, 1);
+      delay(100);
+      digitalWrite(buz,0);
+      digitalWrite(red, 0);
+      return;
     }
 
     data.close();
-
-//****************************START OF PIN DELCARATIONS****************************
-//The following lines of code are for intialzing the output pins on the Teesny 4.0 
-// HV - High Voltage. 
-    pinMode(0, OUTPUT); //BUZZER PIN 0
-    pinMode(1, OUTPUT); //BLUELED PIN 1
-    pinMode(2, OUTPUT); //REDLED PIN 2    ////////////// IMPORTANT NOTE: No need to define pins used  ////////////////
-    pinMode(7, OUTPUT); //CS 1 PIN 7      ////////////// for SPI or i2C (Exception: CS [Chip select] needs defining) ////////////////
-    pinMode(8, OUTPUT); //HV 1 PIN 8
-    pinMode(9, OUTPUT); //HV 2 PIN 9
-    pinMode(10, OUTPUT); //HV 3 PIN 10
-    pinMode(11, OUTPUT); //HV 4 PIN 11
-    pinMode(cs, OUTPUT); //CS 0 PIN 12
-//END PIN DECLARATIONS
   
 //****************************END OF SENSOR INITIALIZERS****************************
 
