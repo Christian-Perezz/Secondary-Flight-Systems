@@ -83,12 +83,18 @@ const int buz = 0,
           hv3 = 10,
           hv4 = 11,
           cs0 = 12; //chip select
-  
+
+int ctrl = 1,
+    exe = 0;
+
+String cmd, //command string from serial prompt
+       cmp; //comparitor string
+       
 //****************************SETUP FUNCTION FOR SENSORS****************************
 void setup() // initial setup -- referenced in main loop down below
 {
     Serial.begin(115200);
-    Serial.print("Initilizing setup...");
+    Serial.print("Initilizing setup... ");
     while(!Serial); //while serial comminucations is intializing
     Serial.println("BAT Aerospace flight systems initilizing...");
 
@@ -116,7 +122,7 @@ void setup() // initial setup -- referenced in main loop down below
       delay(100);
       digitalWrite(buz,0);
       digitalWrite(red, 0);
-      while (1); //delay 
+      serial_monitor();
     }
     
     if (!mpu.begin()) //when mpu did not auto initialize
@@ -127,18 +133,18 @@ void setup() // initial setup -- referenced in main loop down below
       delay(100);
       digitalWrite(buz,0);
       digitalWrite(red, 0);
-      while(1);
+      serial_monitor();
     }
     
     if(!SD.begin(cs0)) //12 is chip select pin for SD card
     {
-      Serial.print("SD card failed to initilize... check power or connections");
+      Serial.println("SD card failed to initilize... check power or connections");
       digitalWrite(red, 1);
       digitalWrite(buz, 1);
       delay(100);
       digitalWrite(buz,0);
       digitalWrite(red, 0);
-      while(1);
+      serial_monitor();
     }
 
     Serial.println("...Success!");
@@ -147,7 +153,7 @@ void setup() // initial setup -- referenced in main loop down below
     
     if (!card.init(SPI_HALF_SPEED, 12)) 
     {
-      Serial.println("initialization failed... Is the card inserted properly");
+      Serial.println("initialization failed... Is the card inserted properly? ");
       digitalWrite(red, 1);
       digitalWrite(buz, 1);
       delay(100);
@@ -349,6 +355,77 @@ bmp.setOutputDataRate(BMP3_ODR_50_HZ);
 //****************************END OF SENSOR AND SYSTEM CONFIGURATIONS****************************
 
 //-------------------------------------------------------------------------------------------------
+
+int serial_monitor()
+{
+  ctrl = 1;
+  Serial.println("An error case has been met... ");
+  Serial.println("Enter /help for commands");
+
+  while(ctrl)
+  {
+    while(Serial.available() == 0);
+    {
+      cmd = Serial.readString();
+      cmp = cmd;
+    }
+    
+    if(cmd == "/help")
+    {
+      exe = 1; 
+    }
+    if(cmd == "/exit")
+    {
+      exe = 2;
+    }
+    if(cmd == "/restart")
+    {
+      exe = 3;
+    }
+    if(cmd == "/skip")
+    {
+      exe = 4;
+    }
+    else exe = 0; //default
+
+//    if(strcmp(cmd, cmp) == 0)
+//    {
+//      
+//    }
+
+    switch(exe)
+    {
+      case 1: //help
+      {
+        Serial.println("/exit -- exits program ");
+        Serial.println("/restart -- restarts setup");
+        Serial.println("/skip -- ignores error case and proceeds");
+        break;
+      }
+      case 2: //exit
+      {
+        return;
+        ctrl = 0;
+        break;
+      }
+      case 3: //restart
+      {
+        setup();
+        ctrl = 0;
+        break;
+      }
+      case 4: //skip
+      {
+        ctrl = 0;
+        break;
+      }
+      default:
+      {   
+        break;  
+      }
+    }
+  }
+}
 
 //****************************BEGIN MAIN PROGRAM LOOP****************************
 
