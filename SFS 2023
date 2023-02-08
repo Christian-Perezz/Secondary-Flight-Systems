@@ -1,5 +1,5 @@
 /* FlightComputerBAT.ino
- * Revision date: 1 Jan 2021
+ * Revision date: 14 Dec 2021
  * Edition: 1.2
  * Written by: Texas State Aerospace Team (BAT), Christian Perez
  * This code is written for the flight computer built and designed by the Avionics Club of the Texas State University
@@ -44,13 +44,8 @@
 #include <ctype.h>
 #include <string.h>
 #include <SD.h>
+#include <SdFat.h>
 //end
-
-//Pin definitions for teensy
-#define BMP_SCK 13
-#define BMP_MISO 12
-#define BMP_MOSI 11
-#define BMP_CS 10
 
 //The following definitions and inclusions are required for the BMP388
 #define SEALEVELPRESSURE_HPA (1013.25)
@@ -68,35 +63,46 @@ Adafruit_MPU6050 mpu;
 
 // ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+//definitions
+#define FILE "dump.txt"
+
 //Global variables
 File data;
 Sd2Card card;
 SdVolume volume;
-SdFile root;
 
 const int buz = 0,
-          blue = 1,
-          red = 2,
-          cs1 = 7,
-          hv1 = 8,
-          hv2 = 9,
-          hv3 = 10,
-          hv4 = 11,
-          cs0 = 12; //chip select
+          red = 1,
+          blue = 2,
+          cs1 = 5, //chip select 1
+          hv1 = 6, //hv lines
+          hv2 = 7, //
+          hv3 = 8, // 
+          hv4 = 9, //  
+          cs0 = 10; //chip select 0 -- SD card cs
 
 int ctrl = 1,
     exe = 0;
 
-String cmd, //command string from serial prompt
-       cmp; //comparitor string
+String cmd; //command string from serial prompt
        
 //****************************SETUP FUNCTION FOR SENSORS****************************
 void setup() // initial setup -- referenced in main loop down below
 {
-    Serial.begin(115200);
-    Serial.print("Initilizing setup... ");
-    while(!Serial); //while serial comminucations is intializing
-    Serial.println("BAT Aerospace flight systems initilizing...");
+    while(!Serial)
+    {
+      delay(500); //while serial comminucations is intializing
+      break;
+    }
+    
+    if(Serial);
+    {
+      Serial.begin(115200);
+      Serial.print("Initilizing setup... ");
+      Serial.println("Booting BAT Aerospace flight systems...");
+    }
+
+      
 
 //****************************PIN DELCARATIONS****************************
 //The following lines of code are for intialzing the output pins on the Teesny 4.0 
@@ -104,134 +110,51 @@ void setup() // initial setup -- referenced in main loop down below
     pinMode(buz, OUTPUT); //BUZZER PIN 0
     pinMode(blue, OUTPUT); //BLUELED PIN 1
     pinMode(red, OUTPUT); //REDLED PIN 2    ////////////// IMPORTANT NOTE: No need to define pins used  ////////////////
-    pinMode(cs1, OUTPUT); //CS 1 PIN 7      ////////////// for SPI or i2C (Exception: CS [Chip Select] needs defining) ////////////////
-    pinMode(hv1, OUTPUT); //HV 1 PIN 8
-    pinMode(hv2, OUTPUT); //HV 2 PIN 9
-    pinMode(hv3, OUTPUT); //HV 3 PIN 10
-    pinMode(hv4, OUTPUT); //HV 4 PIN 11
-    pinMode(cs0, OUTPUT); //CS 0 PIN 12
+    pinMode(cs1, OUTPUT); //CS 1 PIN 5      ////////////// for SPI or i2C (Exception: CS [Chip Select] needs defining) ////////////////
+    pinMode(hv1, OUTPUT); //HV 1 PIN 6
+    pinMode(hv2, OUTPUT); //HV 2 PIN 7
+    pinMode(hv3, OUTPUT); //HV 3 PIN 8
+    pinMode(hv4, OUTPUT); //HV 4 PIN 9
+    pinMode(cs0, OUTPUT); //CS 0 PIN 10
 //END PIN DECLARATIONS
-
+    
     if (!bmp.begin_I2C()) // hardware I2C mode, can pass in address & alt Wire
     {   
       //if (! bmp.begin_SPI(BMP_CS)) {  // hardware SPI mode  
       //if (! bmp.begin_SPI(BMP_CS, BMP_SCK, BMP_MISO, BMP_MOSI)) {  // software SPI mode
-      Serial.println("Could not find a valid BMP3 sensor, check wiring!");
-      digitalWrite(red, 1);
-      digitalWrite(buz, 1);
-      delay(100);
-      digitalWrite(buz,0);
-      digitalWrite(red, 0);
+      Serial.println("Failed to find BMP388 chip...");
+      alert();
       serial_monitor();
     }
     
     if (!mpu.begin()) //when mpu did not auto initialize
     {
-      Serial.println("Failed to find MPU6050 chip");
+      Serial.println("Failed to find MPU6050 chip...");
       digitalWrite(red, 1);
-      digitalWrite(buz, 1);
-      delay(100);
-      digitalWrite(buz,0);
-      digitalWrite(red, 0);
+      alert();
       serial_monitor();
     }
     
-    if(!SD.begin(cs0)) //12 is chip select pin for SD card
+    digitalWrite(cs0, HIGH); //select SD card
+    
+    if(!SD.begin(cs0)) //10 is chip select pin for SD card
     {
-      Serial.println("SD card failed to initilize... check power or connections");
-      digitalWrite(red, 1);
-      digitalWrite(buz, 1);
-      delay(100);
-      digitalWrite(buz,0);
-      digitalWrite(red, 0);
+      Serial.println("SD card failed to initilize...");
+      alert();
       serial_monitor();
     }
 
     Serial.println("...Success!");
 
-//****************************GET SD CARD INFO****************************
-    
-    if (!card.init(SPI_HALF_SPEED, 12)) 
-    {
-      Serial.println("initialization failed... Is the card inserted properly? ");
-      digitalWrite(red, 1);
-      digitalWrite(buz, 1);
-      delay(100);
-      digitalWrite(buz,0);
-      digitalWrite(red, 0);
-      return;
-    } 
-    
-    else 
-    {
-      Serial.println("SD card confirmed...");
-    }
-
-    // print the type of card
-    Serial.print("\nCard type: ");
-    switch(card.type()) 
-    {
-      case SD_CARD_TYPE_SD1:
-        Serial.println("SD1");
-        break;
-      case SD_CARD_TYPE_SD2:
-        Serial.println("SD2");
-        break;
-      case SD_CARD_TYPE_SDHC:
-        Serial.println("SDHC");
-        break;
-      default:
-        Serial.println("Unknown");
-    }
-
-    //volume of card and partion check (FAT32 or FAT16)
-    if (!volume.init(card)) 
-    {
-      Serial.println("Could not find FAT16/FAT32 partition.\nMake sure you've formatted the card");
-      digitalWrite(red, 1);
-      digitalWrite(buz, 1);
-      delay(100);
-      digitalWrite(buz,0);
-      digitalWrite(red, 0);
-      return;
-    }
-
-
-    //displays the type and size of the first FAT-type volume
-    uint32_t volumesize;
-    Serial.print("\nVolume type is FAT");
-    Serial.println(volume.fatType(), DEC); //print in decimal form
-    Serial.println();
-  
-    volumesize = volume.blocksPerCluster();    // clusters are collections of blocks
-    volumesize *= volume.clusterCount();  
-    
-    if (volumesize < 8388608ul) 
-    {
-      Serial.print("Volume size (bytes): ");
-      Serial.println(volumesize * 512);        // SD card blocks are always 512 bytes
-    }
-    Serial.print("Volume size (Kbytes): ");
-    volumesize /= 2;
-    Serial.println(volumesize);
-    Serial.print("Volume size (Mbytes): ");
-    volumesize /= 1024;
-    Serial.println(volumesize);
-    
-//****************************END SD CARD INFO****************************
+    get_SD();
        
     //initalizing data file
     Serial.println("Inilitizing data file...");
     
-//    fopen("dump.txt", "w+"); //clears file
     if(!SD.exists("dump.txt")); //if function returns false
     {
       Serial.println("ERRROR - file does not exist or is missing from directory");
-      digitalWrite(red, 1);
-      digitalWrite(buz, 1);
-      delay(100);
-      digitalWrite(buz,0);
-      digitalWrite(red, 0);
+      alert();
       return;
     }
     
@@ -247,11 +170,7 @@ void setup() // initial setup -- referenced in main loop down below
     else
     {
       Serial.println("Error -- file did not open. Check folder contents.");
-      digitalWrite(red, 1);
-      digitalWrite(buz, 1);
-      delay(100);
-      digitalWrite(buz,0);
-      digitalWrite(red, 0);
+      alert();
       return;
     }
 
@@ -356,19 +275,28 @@ bmp.setOutputDataRate(BMP3_ODR_50_HZ);
 
 //-------------------------------------------------------------------------------------------------
 
-int serial_monitor()
+void alert()
+{
+  digitalWrite(red, 1);
+  digitalWrite(buz, 1);
+  delay(100);
+  digitalWrite(buz, 0);
+}
+
+void serial_monitor()
 {
   ctrl = 1;
-  Serial.println("An error case has been met... ");
-  Serial.println("Enter /help for commands");
-
+  Serial.println("An error occured... ");
+  Serial.println("Enter '/help' for commands");
+  
   while(ctrl)
   {
-    while(Serial.available() == 0);
-    {
-      cmd = Serial.readString();
-      cmp = cmd;
-    }
+    cmd = " "; //empties string
+    
+    while(Serial.available() == 0); {} //wait for console entry
+    cmd = Serial.readString(); //read console input into sting
+    cmd.trim(); //trims invisable characters from string
+    Serial.println("Processing..."); 
     
     if(cmd == "/help")
     {
@@ -386,17 +314,12 @@ int serial_monitor()
     {
       exe = 4;
     }
-    else exe = 0; //default
-
-//    if(strcmp(cmd, cmp) == 0)
-//    {
-//      
-//    }
 
     switch(exe)
     {
       case 1: //help
       {
+        Serial.println("/help -- displays all available commands");
         Serial.println("/exit -- exits program ");
         Serial.println("/restart -- restarts setup");
         Serial.println("/skip -- ignores error case and proceeds");
@@ -404,19 +327,24 @@ int serial_monitor()
       }
       case 2: //exit
       {
-        return;
         ctrl = 0;
+        digitalWrite(red, 0);
+        Serial.println("Exiting systems..");
+        exit(0);
         break;
       }
       case 3: //restart
       {
-        setup();
         ctrl = 0;
+        digitalWrite(red, 0);
+        Serial.println("Reinitializing...");
+        setup();
         break;
       }
       case 4: //skip
       {
         ctrl = 0;
+        digitalWrite(red, 0);
         break;
       }
       default:
@@ -427,12 +355,75 @@ int serial_monitor()
   }
 }
 
+void get_SD()
+{
+    if (!card.init(SPI_HALF_SPEED, cs0)) 
+    {
+      Serial.println("initialization failed... Is the card inserted properly? ");
+      alert();
+      serial_monitor();
+    } 
+    
+    else 
+    {
+      Serial.println("SD card confirmed...");
+    }
+
+    // print the type of card
+    Serial.print("\nCard type: ");
+    switch(card.type()) 
+    {
+      case SD_CARD_TYPE_SD1:
+        Serial.println("SD1");
+        break;
+      case SD_CARD_TYPE_SD2:
+        Serial.println("SD2");
+        break;
+      case SD_CARD_TYPE_SDHC:
+        Serial.println("SDHC");
+        break;
+      default:
+        Serial.println("Unknown");
+    }
+
+    //volume of card and partion check (FAT16 or FAT32)
+    if (!volume.init(card)) 
+    {
+      Serial.println("Could not find FAT16/FAT32 partition.\nMake sure you've formatted the card");
+      alert();
+      return;
+    }
+
+
+    //displays the type and size of the first FAT-type volume
+    uint32_t volumesize;
+    Serial.print("\nVolume type is FAT");
+    Serial.println(volume.fatType(), DEC); //print in decimal form
+    Serial.println();
+  
+    volumesize = volume.blocksPerCluster();    // clusters are collections of blocks
+    volumesize *= volume.clusterCount();  
+    
+    if (volumesize < 8388608ul) 
+    {
+      Serial.print("Volume size (bytes): ");
+      Serial.println(volumesize * 512);        // SD card blocks are always 512 bytes
+    }
+    Serial.print("Volume size (Kbytes): ");
+    volumesize /= 2;
+    Serial.println(volumesize);
+    Serial.print("Volume size (Mbytes): ");
+    volumesize /= 1024;
+    Serial.println(volumesize);
+}
+
 //****************************BEGIN MAIN PROGRAM LOOP****************************
 
 void loop() 
 { 
-  setup(); //run setup function 
   SD.open("dump.txt"); //open text file.
+  
+  digitalWrite(red, 0);
   
   //error checking for BMP startup
   if (! bmp.performReading()) //if unsuccesful initialization 
@@ -451,6 +442,7 @@ void loop()
   mpu.getEvent(&a, &g, &temp); // new values for sensors -- variable references memory location not variable name
 
 //****************************MPU AND BMP DATA DISPLAY****************************
+  digitalWrite(blue, 1);
   
   data.println("BMP TEMP READOUTS");
   Serial.print("Temperature = ");
@@ -469,7 +461,6 @@ void loop()
   Serial.println(" m"); // in meters
 
   Serial.println();
-  delay(20); //miliseconds
 
   data.println("ACCELERATION READOUT");
   //Print out the values onto the serial monitor 
@@ -505,6 +496,8 @@ void loop()
   Serial.println(" deg C");
 
   Serial.println(""); //character space
+
+  digitalWrite(blue, 0);
 //END DATA DISPLAY
 
 //****************************HV3 line actuation****************************
