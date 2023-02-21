@@ -46,7 +46,8 @@
 #include <ctype.h>
 #include <string.h>
 #include <SD.h>
-#include <SdFat.h>
+#include "SdFat.h"
+#include "RingBuf.h"
 //end
 
 //Pin definitions for teensy
@@ -54,6 +55,8 @@
 //#define BMP_MISO 12
 //#define BMP_MOSI 11
 //#define BMP_CS 10
+
+#define SD_CONFIG  SdioConfig(FIFO_SDIO)
 
 //The following definitions and inclusions are required for the BMP388
 #define SEALEVELPRESSURE_HPA (1013.25)
@@ -96,7 +99,7 @@ int ctrl = 1, //loop control variable
 
 String cmd; //command string from serial prompt
        
-//****************************SETUP FUNCTION FOR SENSORS****************************
+//****************************SETUP FUNCTION FOR SENSORS AND FILES****************************
 void setup() // initial setup -- referenced in main loop down below
 {
     while(!Serial)
@@ -112,13 +115,8 @@ void setup() // initial setup -- referenced in main loop down below
       Serial.println("Booting BAT Aerospace flight systems...");
     }
 
-    SPISettings(16000000,MSBFIRST, SPI_MODE0); 
-    SPI.begin();
-    digitalWrite(cs0, 0);
-
 //****************************PIN DELCARATIONS****************************
 //The following lines of code are for intialzing the output pins on the Teesny 4.0
- 
 // HV - High Voltage. 
     pinMode(buz, OUTPUT); //BUZZER PIN 0
     pinMode(blue, OUTPUT); //BLUELED PIN 1
@@ -130,10 +128,19 @@ void setup() // initial setup -- referenced in main loop down below
     pinMode(hv4, OUTPUT); //HV 4 PIN 9
     pinMode(cs0, OUTPUT); //CS 0 PIN 10
     pinMode(sck, OUTPUT); //SCK clock pin for SPI
-    pinMode(mosi, OUTPUT);
-    pinMode(miso, INPUT);
+    pinMode(mosi, OUTPUT); //data out
+    pinMode(miso, INPUT); //data in
 //END PIN DECLARATIONS
-    
+
+//SPI DECLARATIONS
+    SPI.begin(); //BEGIN SPI 
+
+    SPI.setMOSI(mosi); //DATA OUT 
+    SPI.setMISO(miso); //DATA IN
+    SPI.setSCK(sck); //CLOCK
+//END 
+
+//***************************************SENSOR INITIALIZATIONS***************************************
     if (!bmp.begin_I2C()) // hardware I2C mode, can pass in address & alt Wire
     {   
       //if (! bmp.begin_SPI(BMP_CS)) {  // hardware SPI mode  
@@ -186,12 +193,12 @@ void setup() // initial setup -- referenced in main loop down below
 
 //****************************BMP SENSOR CONFIG****************************
 
-//Set up oversampling and filter initialization for the BMP [ Data Acquisition ]
-bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
-bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
-bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
-bmp.setOutputDataRate(BMP3_ODR_50_HZ);
-//refer to adafruit documentation
+  //Set up oversampling and filter initialization for the BMP [ Data Acquisition ]
+  bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
+  bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
+  bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
+  bmp.setOutputDataRate(BMP3_ODR_50_HZ);
+  //refer to adafruit documentation
 
 //END OF BMP CONIFG
 
@@ -384,7 +391,7 @@ void serial_monitor()
 }
 
 void get_SD()
-{
+{      
     if(!SD.begin(cs0))
     {
       Serial.println("SD card failed to initilize...");
